@@ -4,20 +4,21 @@
  */
 import Controller from '@ember/controller';
 import { tracked } from '@glimmer/tracking';
-import { getProperties, get, computed, action } from '@ember/object';
+import { computed, action } from '@ember/object';
 import { inject as service } from '@ember/service';
-import { A as arr } from '@ember/array';
+import DirectoriesService from 'navi-directory/services/directories';
+import RouterService from '@ember/routing/router-service';
 
 export default class DirectoryController extends Controller {
   /**
    * @property {Service} directories - service to load the valid directory options
    */
-  @service directories;
+  @service directories!: DirectoriesService;
 
   /**
    * @property {Service} router - service to check current route
    */
-  @service router;
+  @service router!: RouterService;
 
   /**
    * @property {Array} queryParams - array of allowed query params
@@ -42,14 +43,6 @@ export default class DirectoryController extends Controller {
   @tracked sortBy = 'updatedOn';
 
   /**
-   * @property {String} sortKey - sort key (computed by sortBy query param)
-   */
-  get sortKey() {
-    const { sortBy } = this;
-    return sortBy === 'author' ? 'author.id' : sortBy;
-  }
-
-  /**
    * @property {String} sortDir - query param for sort direction
    */
   @tracked sortDir = 'desc';
@@ -60,19 +53,26 @@ export default class DirectoryController extends Controller {
   @tracked q = '';
 
   /**
+   * @property {String} sortKey - sort key (computed by sortBy query param)
+   */
+  get sortKey() {
+    const { sortBy } = this;
+    return sortBy === 'author' ? 'author.id' : sortBy;
+  }
+
+  /**
    * @property {String} title - Title for the table
    */
   @computed('filter', 'router.currentRouteName')
   get title() {
-    const currentRoute = get(this, 'router.currentRouteName'),
-      dirInfo = this.directories.getDirectories(),
-      currentDir = arr(dirInfo).findBy('routeLink', currentRoute);
+    const { router, directories, filter } = this;
+    const currentDir = directories.getDirectories().find(dir => dir.routeLink === router.currentRouteName);
 
-    let title = currentDir.name,
-      queryParams = getProperties(this, ['filter']),
-      match = currentDir.filters.filter(filter => JSON.stringify(filter.queryParam) === JSON.stringify(queryParams));
+    let title = currentDir?.name,
+      queryParams = { filter },
+      match = currentDir?.filters.filter(filter => JSON.stringify(filter.queryParams) === JSON.stringify(queryParams));
 
-    if (match.length === 1) {
+    if (match?.length === 1) {
       title = match[0].name;
     }
 
@@ -82,19 +82,25 @@ export default class DirectoryController extends Controller {
   /**
    * @action searchFor
    * Sets the query param for search
-   * @param {String} query
+   * @param {string} query
    */
   @action
-  searchFor(query) {
+  searchFor(query: string) {
     this.q = query;
   }
 
   /**
    * @action updateQueryParams - update to the new query params
-   * @param {Object} queryParams
+   * @param {object} queryParams
    */
   @action
-  updateQueryParams(queryParams) {
+  updateQueryParams(queryParams: object) {
     this.transitionToRoute({ queryParams });
+  }
+}
+
+declare module '@ember/controller' {
+  interface Registry {
+    directory: DirectoryController;
   }
 }
